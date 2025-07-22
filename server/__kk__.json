@@ -1,0 +1,41 @@
+Creating Redis clients...
+Creating WebSocket server...
+Starting server...
+Starting server initialization...
+Connecting Redis publisher...
+[Redis Publisher] Connected
+Redis publisher connected successfully
+Connecting Redis subscriber...
+[Redis Subscriber] Connected
+Redis subscriber connected successfully
+Subscribing to trade-events channel...
+Successfully subscribed to trade-events
+Server listening on port 4000
+Server initialization complete
+
+---------------------- after place order from client ---------------------
+
+[HTTP] POST /trade received: { userId: 'user123', symbol: 'aci', quantity: 14, price: 0.03 }
+[HTTP] Publishing trade event: {
+  userId: 'user123',
+  symbol: 'aci',
+  quantity: 14,
+  price: 0.03,
+  timestamp: 1750154906702
+}
+[HTTP] Trade event published successfully
+[Redis Sub] Received message: {"userId":"user123","symbol":"aci","quantity":14,"price":0.03,"timestamp":1750154906702}
+[Redis Sub] Parsed trade event: {
+  userId: 'user123',
+  symbol: 'aci',
+  quantity: 14,
+  price: 0.03,
+  timestamp: 1750154906702
+}
+[Broadcast] Sending to 0 clients: {
+  userId: 'user123',
+  symbol: 'aci',
+  quantity: 14,
+  price: 0.03,
+  timestamp: 1750154906702
+}

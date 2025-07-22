@@ -6,6 +6,7 @@ function App() {
   const [quantity, setQuantity] = useState(0);
   const [price, setPrice] = useState(0);
   const [wsStatus, setWsStatus] = useState('disconnected');
+   const [side, setSide] = useState('1'); // Default to Buy ('1' is FIX code for Buy)
 
   // Debug initial state
   console.log('[App] Initial render', { symbol, quantity, price, trades });
@@ -62,6 +63,7 @@ function App() {
         symbol,
         quantity: Number(quantity),
         price: Number(price),
+        side: side, // '1' for Buy, '2' for Sell
       };
       
       console.log('Sending order:', orderData);
@@ -97,6 +99,7 @@ function App() {
     symbol, 
     quantity, 
     price, 
+    side,
     tradeCount: trades.length,
     wsStatus 
   });
@@ -107,7 +110,7 @@ function App() {
       <div style={{ marginBottom: 20 }}>
         <div style={{ marginBottom: 10 }}>
           <input 
-            placeholder="Symbol (e.g. AAPL)" 
+            placeholder="Symbol (e.g. GP)" 
             value={symbol} 
             onChange={e => {
               console.log('Symbol changed to:', e.target.value);
@@ -128,6 +131,7 @@ function App() {
             style={{ marginRight: 10 }}
           />
         </div>
+      
         <div style={{ marginBottom: 10 }}>
           <input 
             placeholder="Price" 
@@ -140,6 +144,30 @@ function App() {
             }} 
             style={{ marginRight: 10 }}
           />
+        </div>
+          <div style={{ marginBottom: 10 }}>
+          <label>
+            <input
+              type="radio"
+              name="side"
+              value="1"
+              checked={side === '1'}
+              onChange={() => setSide('1')}
+              style={{ marginRight: 5 }}
+            />
+            Buy
+          </label>
+          <label style={{ marginLeft: 10 }}>
+            <input
+              type="radio"
+              name="side"
+              value="2"
+              checked={side === '2'}
+              onChange={() => setSide('2')}
+              style={{ marginRight: 5 }}
+            />
+            Sell
+          </label>
         </div>
         <button 
           onClick={placeOrder}
@@ -168,8 +196,12 @@ function App() {
                 <strong>{trade.symbol}</strong> - {trade.quantity} shares @ ${trade.price.toFixed(2)}
               </div>
               <div style={{ fontSize: 12, color: '#666' }}>
-                User: {trade.userId} | {new Date(trade.timestamp).toLocaleTimeString()}
-              </div>
+  User: {trade.userId} | {
+    new Date(
+      trade.transactTime.replace(/^(\d{4})(\d{2})(\d{2})-(.*)$/, '$1-$2-$3T$4Z')
+    ).toLocaleString()
+  }
+</div>
             </li>
           ))}
         </ul>

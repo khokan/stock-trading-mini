@@ -27,6 +27,7 @@ console.log('Creating WebSocket server...');
 const wss = new WebSocket.Server({ server });
 
 // WebSocket server events
+// This section handles WebSocket connections, disconnections, and errors.
 wss.on('connection', (ws) => {
   console.log('[WebSocket] New client connected');
   console.log(`[WebSocket] Current connections: ${wss.clients.size}`);
@@ -41,6 +42,7 @@ wss.on('connection', (ws) => {
   });
 });
 
+// broadcast function to send messages to all connected WebSocket clients
 function broadcast(data) {
   console.log(`[Broadcast] Sending to ${wss.clients.size} clients:`, data);
   wss.clients.forEach(client => {
@@ -52,6 +54,7 @@ function broadcast(data) {
   });
 }
 
+// Start the server and initialize Redis connections
 async function start() {
   console.log('Starting server initialization...');
 
@@ -66,12 +69,13 @@ async function start() {
     console.log('Redis subscriber connected successfully');
 
     // Subscribe to channel
-    console.log('Subscribing to trade-events channel...');
-    await redisSub.subscribe('trade-events', (message) => {
+    // This section subscribes to the 'execution-reports' channel and listens for messages.
+    console.log('Subscribing to execution-reports channel...');
+    await redisSub.subscribe('execution-reports', (message) => {
       console.log('[Redis Sub] Received message:', message);
       try {
         const data = JSON.parse(message);
-        console.log('[Redis Sub] Parsed trade event:', data);
+        console.log('[Redis Sub] Parsed execution report:', data);
         broadcast(data);
       } catch (err) {
         console.error('[Redis Sub] Error parsing message:', err);
@@ -80,11 +84,12 @@ async function start() {
     console.log('Successfully subscribed to trade-events');
 
     // POST trade endpoint
+    // This section defines the HTTP POST endpoint for executing trades.
     app.post('/trade', async (req, res) => {
       console.log('[HTTP] POST /trade received:', req.body);
       
       try {
-        const { userId, symbol, quantity, price } = req.body;
+        const { userId, symbol, quantity, price, side } = req.body;
         
         // if (!userId || !symbol || !quantity || !price) {
         //   console.warn('[HTTP] Invalid trade data received');
@@ -96,6 +101,7 @@ async function start() {
           symbol,
           quantity,
           price,
+          side,
           timestamp: Date.now()
         };
 
