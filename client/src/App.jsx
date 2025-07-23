@@ -1,65 +1,48 @@
 import React, { useEffect, useState } from 'react';
 
 function App() {
-  const [trades, setTrades] = useState([]);
-  const [symbol, setSymbol] = useState('');
-  const [quantity, setQuantity] = useState(0);
-  const [price, setPrice] = useState(0);
-  const [wsStatus, setWsStatus] = useState('disconnected');
-   const [side, setSide] = useState('1'); // Default to Buy ('1' is FIX code for Buy)
+  const [symbol, setSymbol] = useState('GP');
+  const [quantity, setQuantity] = useState("100");
+  const [price, setPrice] = useState("338");
+  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState('disconnected');
+  const [side, setSide] = useState('1'); // Default to Buy ('1' is FIX code for Buy)
+  const [userId, setUserId] = useState('');
+  const [reports, setReports] = useState([]);
+
 
   // Debug initial state
-  console.log('[App] Initial render', { symbol, quantity, price, trades });
+  console.log('[App] Initial render', { symbol, quantity, price, reports });
 
-  useEffect(() => {
-    console.log('[WebSocket] Attempting to connect...');
-    const ws = new WebSocket('ws://localhost:4000');
+ const connectWebSocket = () => {
+    const socket = new WebSocket('ws://localhost:4000');
 
-    ws.onopen = () => {
-      console.log('[WebSocket] Connection established');
-      setWsStatus('connected');
+    socket.onopen = () => {
+      console.log('[WS] Connected');
+      socket.send(JSON.stringify({ type: 'identify', userId }));
+      setConnected(true);
+      setStatus('Connected');
     };
 
-    ws.onmessage = (event) => {
-      console.groupCollapsed('[WebSocket] Received message');
-      console.log('Raw message:', event.data);
-      
-      try {
-        const data = JSON.parse(event.data);
-        console.log('Parsed trade data:', data);
-        
-        setTrades(prev => {
-          const newTrades = [data, ...prev.slice(0, 9)]; // Keep last 10 trades
-          console.log('Updated trades:', newTrades);
-          return newTrades;
-        });
-      } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
-      }
-      console.groupEnd();
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('[WS] Execution report received:', data);
+      setReports((prev) => [...prev, data]);
     };
 
-    ws.onerror = (err) => {
-      console.error('[WebSocket] Error:', err);
-      setWsStatus('error');
+    socket.onclose = () => {
+      console.log('[WS] Disconnected');
+      setConnected(false);
+      setStatus('Disconnected');
     };
+  };
 
-    ws.onclose = () => {
-      console.log('[WebSocket] Connection closed');
-      setWsStatus('disconnected');
-    };
-
-    return () => {
-      console.log('[WebSocket] Cleaning up connection');
-      ws.close();
-    };
-  }, []);
 
   const placeOrder = async () => {
     console.group('[Order] Placing new order');
     try {
       const orderData = {
-        userId: 'user123',
+        userId,
         symbol,
         quantity: Number(quantity),
         price: Number(price),
@@ -68,7 +51,7 @@ function App() {
       
       console.log('Sending order:', orderData);
       
-      const res = await fetch('http://localhost:4000/trade', {
+      const res = await fetch('http://localhost:4000/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
@@ -94,58 +77,52 @@ function App() {
     }
   };
 
-  // Debug render with current state
-  console.log('[App] Render', { 
-    symbol, 
-    quantity, 
-    price, 
-    side,
-    tradeCount: trades.length,
-    wsStatus 
-  });
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>Real-Time Stock Trading</h1>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 10 }}>
-          <input 
-            placeholder="Symbol (e.g. GP)" 
-            value={symbol} 
-            onChange={e => {
-              console.log('Symbol changed to:', e.target.value);
-              setSymbol(e.target.value);
-            }} 
-            style={{ marginRight: 10 }}
+   return (
+    <div className="p-4 max-w-xl mx-auto space-y-4 font-mono">
+      <p className="text-xl font-bold">📡 FIX Order Client</p>
+
+      {!connected ? (
+        <div className="space-y-2">
+          <input
+            placeholder="Enter User ID"
+            className="border px-2 py-1 w-full"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
           />
+          <button
+            onClick={connectWebSocket}
+            className="bg-blue-600 text-white px-4 py-1 rounded"
+            disabled={!userId}
+          >
+            Connect
+          </button>
         </div>
-        <div style={{ marginBottom: 10 }}>
-          <input 
-            placeholder="Quantity" 
-            type="number" 
-            value={quantity} 
-            onChange={e => {
-              console.log('Quantity changed to:', e.target.value);
-              setQuantity(e.target.value);
-            }} 
-            style={{ marginRight: 10 }}
-          />
-        </div>
-      
-        <div style={{ marginBottom: 10 }}>
-          <input 
-            placeholder="Price" 
-            type="number" 
-            step="0.01"
-            value={price} 
-            onChange={e => {
-              console.log('Price changed to:', e.target.value);
-              setPrice(e.target.value);
-            }} 
-            style={{ marginRight: 10 }}
-          />
-        </div>
-          <div style={{ marginBottom: 10 }}>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div>Status: <span className="font-semibold">{status}</span></div>
+            <input
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              placeholder="Symbol"
+              className="border px-2 py-1 w-full"
+            />
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              placeholder="Quantity"
+              className="border px-2 py-1 w-full"
+            />
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              placeholder="Price"
+              className="border px-2 py-1 w-full"
+            />
+              <div style={{ marginBottom: 10 }}>
           <label>
             <input
               type="radio"
@@ -169,42 +146,25 @@ function App() {
             Sell
           </label>
         </div>
-        <button 
-          onClick={placeOrder}
-          disabled={!symbol || !quantity || !price}
-        >
-          Place Order
-        </button>
-        <div style={{ marginTop: 10 }}>
-          WebSocket Status: {wsStatus}
-        </div>
-      </div>
-      
-      <h2>Executed Trades (Last 10)</h2>
-      {trades.length === 0 ? (
-        <p>No trades yet</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {trades.map((trade, idx) => (
-            <li key={idx} style={{ 
-              padding: 10, 
-              marginBottom: 5, 
-              border: '1px solid #ddd',
-              borderRadius: 4
-            }}>
-              <div>
-                <strong>{trade.symbol}</strong> - {trade.quantity} shares @ ${trade.price.toFixed(2)}
-              </div>
-              <div style={{ fontSize: 12, color: '#666' }}>
-  User: {trade.userId} | {
-    new Date(
-      trade.transactTime.replace(/^(\d{4})(\d{2})(\d{2})-(.*)$/, '$1-$2-$3T$4Z')
-    ).toLocaleString()
-  }
-</div>
-            </li>
-          ))}
-        </ul>
+            <button
+              onClick={placeOrder}
+              className="bg-green-600 text-white px-4 py-1 rounded"
+            >
+              Submit Order
+            </button>
+          </div>
+
+          <div>
+            <h2 className="mt-4 font-bold">📈 Execution Reports:</h2>
+            <ul className="mt-2 space-y-1 text-sm max-h-48 overflow-auto">
+              {reports.map((r, idx) => (
+                <li key={idx} className="border-b py-1">
+                  <code>{JSON.stringify(r)}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );

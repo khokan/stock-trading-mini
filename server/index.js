@@ -1,139 +1,92 @@
+// server.js
 const express = require('express');
 const http = require('http');
-const redis = require('redis');
 const WebSocket = require('ws');
 const cors = require('cors');
+const bodyParser = require('body-parser');
+const { createClient } = require('redis');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-
 const server = http.createServer(app);
-
-console.log('Creating Redis clients...');
-const redisPub = redis.createClient();
-const redisSub = redis.createClient();
-
-// Redis client event listeners
-redisPub.on('connect', () => console.log('[Redis Publisher] Connected'));
-redisPub.on('error', (err) => console.error('[Redis Publisher] Error:', err));
-redisPub.on('end', () => console.log('[Redis Publisher] Disconnected'));
-
-redisSub.on('connect', () => console.log('[Redis Subscriber] Connected'));
-redisSub.on('error', (err) => console.error('[Redis Subscriber] Error:', err));
-redisSub.on('end', () => console.log('[Redis Subscriber] Disconnected'));
-
-console.log('Creating WebSocket server...');
 const wss = new WebSocket.Server({ server });
 
-// WebSocket server events
-// This section handles WebSocket connections, disconnections, and errors.
-wss.on('connection', (ws) => {
-  console.log('[WebSocket] New client connected');
-  console.log(`[WebSocket] Current connections: ${wss.clients.size}`);
+// === Redis Setup ===
+const redis = createClient();           // default localhost:6379
+const subscriber = redis.duplicate();   // separate client for subscription
+redis.connect();
+subscriber.connect();
 
-  ws.on('close', () => {
-    console.log('[WebSocket] Client disconnected');
-    console.log(`[WebSocket] Remaining connections: ${wss.clients.size}`);
+const ORDER_CHANNEL = 'order-events';
+const REPORT_CHANNEL = 'execution-reports';
+
+// === Middleware ===
+app.use(cors());
+app.use(bodyParser.json());
+
+// === In-Memory Map of userId -> WebSocket connection ===
+const clients = new Map();
+
+// === WebSocket Setup ===
+wss.on('connection', (ws) => {
+  console.log('[WS] New client connected');
+
+  ws.on('message', (message) => {
+    const data = JSON.parse(message);
+    console.log('[WS] Received message:', data);
+    if (data.type === 'identify') {
+      clients.set(data.userId, ws);
+      console.log(`[WS] Registered user: ${data.userId}`);
+    }
   });
 
-  ws.on('error', (err) => {
-    console.error('[WebSocket] Error:', err);
+  ws.on('close', () => {
+    for (const [userId, socket] of clients.entries()) {
+      if (socket === ws) {
+        clients.delete(userId);
+        console.log(`[WS] User ${userId} disconnected`);
+        break; 
+      }
+    }
   });
 });
 
-// broadcast function to send messages to all connected WebSocket clients
-function broadcast(data) {
-  console.log(`[Broadcast] Sending to ${wss.clients.size} clients:`, data);
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
-    } else {
-      console.warn('[Broadcast] Skipping non-ready client');
-    }
-  });
-}
 
-// Start the server and initialize Redis connections
-async function start() {
-  console.log('Starting server initialization...');
+// === REST Endpoint to Receive Order from React ===
+app.post('/order', async (req, res) => {
+  const order = req.body;
 
-  try {
-    // Connect both clients
-    console.log('Connecting Redis publisher...');
-    await redisPub.connect();
-    console.log('Redis publisher connected successfully');
-
-    console.log('Connecting Redis subscriber...');
-    await redisSub.connect();
-    console.log('Redis subscriber connected successfully');
-
-    // Subscribe to channel
-    // This section subscribes to the 'execution-reports' channel and listens for messages.
-    console.log('Subscribing to execution-reports channel...');
-    await redisSub.subscribe('execution-reports', (message) => {
-      console.log('[Redis Sub] Received message:', message);
-      try {
-        const data = JSON.parse(message);
-        console.log('[Redis Sub] Parsed execution report:', data);
-        broadcast(data);
-      } catch (err) {
-        console.error('[Redis Sub] Error parsing message:', err);
-      }
-    });
-    console.log('Successfully subscribed to trade-events');
-
-    // POST trade endpoint
-    // This section defines the HTTP POST endpoint for executing trades.
-    app.post('/trade', async (req, res) => {
-      console.log('[HTTP] POST /trade received:', req.body);
-      
-      try {
-        const { userId, symbol, quantity, price, side } = req.body;
-        
-        // if (!userId || !symbol || !quantity || !price) {
-        //   console.warn('[HTTP] Invalid trade data received');
-        //   return res.status(400).json({ error: 'Missing required fields' });
-        // }
-
-        const tradeEvent = {
-          userId,
-          symbol,
-          quantity,
-          price,
-          side,
-          timestamp: Date.now()
-        };
-
-        console.log('[HTTP] Publishing trade event:', tradeEvent);
-        
-        // Publish trade event
-        await redisPub.publish('trade-events', JSON.stringify(tradeEvent));
-        console.log('[HTTP] Trade event published successfully');
-
-        res.status(200).json({ status: 'Order executed', trade: tradeEvent });
-      } catch (err) {
-        console.error('[HTTP] Error processing trade:', err);
-        res.status(500).json({ error: 'Internal server error', details: err.message });
-      }
-    });
-
-    // Start HTTP server
-    const PORT = 4000;
-    server.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
-      console.log('Server initialization complete');
-    });
-
-  } catch (err) {
-    console.error('Server initialization failed:', err);
-    process.exit(1);
+  if (!order.userId || !order.symbol || !order.quantity || !order.price) {
+    return res.status(400).json({ error: 'Missing fields' });
   }
-}
 
-// Start everything
-console.log('Starting server...');
-start().catch(err => {
-  console.error('Fatal error during startup:', err);
-  process.exit(1);
+  console.log('[API] Received order:', order);
+
+  // Publish order to Redis
+  await redis.publish(ORDER_CHANNEL, JSON.stringify(order));
+
+  res.status(200).json({ message: 'Order submitted' });
+});
+
+// === Redis Subscriber: Execution Report Handler ===
+subscriber.subscribe(REPORT_CHANNEL, (message) => {
+  const report = JSON.parse(message);
+  console.log('[REDIS] Received execution report:', report);
+  const { userId } = report;
+
+  console.log('[REDIS] Received execution report:', report);
+
+  const userSocket = clients.get(userId);
+  if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+    userSocket.send(JSON.stringify(report));
+    console.log(`[WS] Sent report to user ${userId}`);
+    
+  } else {
+    console.warn(`[WS] No WebSocket found for user ${userId}`);
+  }
+});
+
+// === Start Server ===
+const PORT = 4000;
+server.listen(PORT, () => {
+  console.log(`✅ API server running at http://localhost:${PORT}`);
 });
