@@ -1,3 +1,13 @@
+## Navigation
+- [Client Documentation](#client)
+- [Server Documentation](#server)
+
+## Client
+[Detailed client docs](./client/README.md)
+
+## Server
+[Detailed server docs](./server/README.md)
+
 # How Client Will See Broadcast Message from Redis via WebSocket
 
 ## Overview
@@ -57,3 +67,4 @@ function App() {
 }
 
 export default App;
+
