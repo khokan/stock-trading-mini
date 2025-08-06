@@ -1,6 +1,8 @@
-## Navigation
-- [Client Documentation](#client)
-- [Server Documentation](#server)
+# NextGen OMS - Order Management System for Equity Trading
+
+NextGen OMS is a professional-grade Order Management System designed for equity markets. It supports real-time FIX 5.0 SP2 order routing, market data via FAST protocol, and scalable microservice communication using Redis.
+
+---
 
 ## Client
 [Detailed client docs](./client/README.md)
@@ -26,45 +28,52 @@ Your backend listens to Redis **pub/sub** messages and broadcasts them to connec
 
 ---
 
-## React Client Example
+## 📦 Full Stack Overview
 
-```jsx
-import React, { useEffect, useState } from 'react';
+| Layer     | Tech Stack                          |
+|-----------|-------------------------------------|
+| 🔵 Client | React.js + Tailwind CSS             |
+| 🟢 Server | Node.js + Express + Redis Pub/Sub   |
+| ⚙️ Engine | C# FIX Engine (Order Routing)       |
+| 📊 Market | C# FAST Engine (Market Data Feed)   |
 
-function App() {
-  const [messages, setMessages] = useState([]);
+---
 
-  useEffect(() => {
-    // Connect to backend WebSocket server
-    const ws = new WebSocket('ws://localhost:4000');
+## 🚀 Live Links
 
-    // Handle incoming messages from backend
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setMessages(prev => [data, ...prev]);
-    };
+- **Client Website:** [https://nextgen-oms-client.web.app](https://nextgen-oms-client.web.app)
+- **Server API:** [https://nextgen-oms-server.vercel.app](https://nextgen-oms-server.vercel.app)
 
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-    };
+---
 
-    // Clean up WebSocket connection when component unmounts
-    return () => ws.close();
-  }, []);
+## 🗂 Repositories
 
-  return (
-    <div>
-      <h1>Real-time Trades</h1>
-      <ul>
-        {messages.map((trade, idx) => (
-          <li key={idx}>
-            {trade.symbol} - {trade.quantity} shares @ ${trade.price} (User: {trade.userId})
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+- **Client:** [NextGen OMS Client](./client)
+- **Server:** [NextGen OMS Server](./server)
 
-export default App;
+---
 
+## 🔧 System Architecture
+
+```
+Browser UI → Node.js API → Redis Pub/Sub → C# Order Processor (FIX Engine)
+                       ↑                      ↓
+             WebSocket Market Feed     Exchange (via FIX 5.0 SP2 / FAST)
+```
+
+---
+
+## 🧱 Modules
+
+- 📘 `client/` – React trading UI
+- 📗 `server/` – Express API server, Redis integration
+- ⚙️ `fix-engine/` – C# FIX Engine console app
+- 📉 `fast-decoder/` – C# FAST Engine (market data)
+
+---
+
+## ✅ Setup & Run
+
+Refer to each module’s README for individual setup instructions.
+
+---
